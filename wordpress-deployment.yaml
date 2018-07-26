@@ -7,13 +7,11 @@ metadata:
     app: wordpress
 spec:
   ports:
-    - port: 80
-      targetPort: 80
-      nodePort: 30180
+   - protocol: TCP
+     port: 80
   selector:
     app: wordpress
     tier: frontend
-  type: NodePort
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -69,3 +67,17 @@ spec:
         - name: wordpress-local-storage
           persistentVolumeClaim:
             claimName: wp-lv-claim
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: wordpress-ingress
+spec:
+  rules:
+  - host: wp.tinylab.info
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: wordpress
+          servicePort: 80
