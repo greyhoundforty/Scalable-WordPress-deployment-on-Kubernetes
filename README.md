@@ -105,6 +105,8 @@ Once you have the Ingress subdomain create the needed CNAME record at your domai
 
 ![dns_record](images/dns_record.png)
 
+Once the DNS record has propagated you can visit your domain and you should be presented with the Wordpress initial configuration page. 
+
 ## Deployment Option 2: Using IBM CLoud Compose for MySQL as backend (WORK IN PROGRESS)
 
 Provision Compose for MySQL in IBM Cloud via https://console.ng.bluemix.net/catalog/services/compose-for-mysql
