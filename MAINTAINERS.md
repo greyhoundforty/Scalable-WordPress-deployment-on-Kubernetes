@@ -1,3 +1,17 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Maintainers Guide](#maintainers-guide)
+  - [Methodology](#methodology)
+  - [Merge approval](#merge-approval)
+  - [Reviewing Pull Requests](#reviewing-pull-requests)
+    - [Does the change have positive impact?](#does-the-change-have-positive-impact)
+    - [Do the changes make sense?](#do-the-changes-make-sense)
+    - [Does the change introduce a new feature?](#does-the-change-introduce-a-new-feature)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Maintainers Guide
 
 This guide is intended for maintainers - anybody with commit access to one or
