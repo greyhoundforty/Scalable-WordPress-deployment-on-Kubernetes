@@ -59,7 +59,7 @@ metadata:
   name: wordpress-ingress
 spec:
   rules:
-  - host: wp.tinylab.info
+  - host: example.com
     http:
       paths:
       - path: /
