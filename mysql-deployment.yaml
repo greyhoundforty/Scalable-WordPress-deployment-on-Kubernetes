@@ -13,22 +13,6 @@ spec:
     tier: mysql
   clusterIP: None
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mysql-lv-claim
-  annotations:
-    volume.beta.kubernetes.io/storage-class: "ibmc-file-silver"
-  labels:
-    billingType: "hourly"
-    app: wordpress
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 20Gi
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:

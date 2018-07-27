@@ -1,60 +1,42 @@
-[![Build Status](https://travis-ci.org/IBM/Scalable-WordPress-deployment-on-Kubernetes.svg?branch=master)](https://travis-ci.org/IBM/Scalable-WordPress-deployment-on-Kubernetes)
+# Wordpress on IBM Kubernetes Service (IKS)
 
-*Read this in other languages: [한국어](README-ko.md).*
+This is my fork of the official Scalable Wordpress example [here](https://github.com/IBM/Scalable-WordPress-deployment-on-Kubernetes). I am going to outline 2 options for this deployment:
 
-# Scalable WordPress deployment on Kubernetes Cluster
+ 1. Run mysql in a container 
+ 2. Use the IBM Cloud Compose for Mysql service. (WORK IN PROGRESS)
 
-This journey showcases the full power of Kubernetes clusters and shows how can we deploy the world's most popular website framework on top of world's most popular container orchestration platform. We provide a full roadmap for hosting WordPress on a Kubernetes Cluster. Each component runs in a separate container or group of containers.
-
-WordPress represents a typical multi-tier app and each component will have its own container(s). The WordPress containers will be the frontend tier and the MySQL container will be the database/backend tier for WordPress.
-
-In addition to deployment on Kubernetes, we will also show how you can scale the front WordPress tier, as well as how you can use MySQL as a service from IBM Cloud to be used by WordPress frontend.
-
-![kube-wordpress](images/kube-wordpress-code.png)
+Both of these options require that you be running a standard (non-free tier) Kubernetes cluster. 
 
 ## Included Components
 - [WordPress (Latest)](https://hub.docker.com/_/wordpress/)
 - [MySQL (5.6)](https://hub.docker.com/_/mysql/)
 - [Kubernetes Clusters](https://console.ng.bluemix.net/docs/containers/cs_ov.html#cs_ov)
 - [IBM Cloud Compose for MySQL](https://console.ng.bluemix.net/catalog/services/compose-for-mysql)
-- [IBM Cloud DevOps Toolchain Service](https://console.ng.bluemix.net/catalog/services/continuous-delivery)
 - [IBM Cloud Container Service](https://console.ng.bluemix.net/catalog/?taxonomyNavigation=apps&category=containers)
 
-## Prerequisite
-
-Create a Kubernetes cluster with either [Minikube](https://kubernetes.io/docs/getting-started-guides/minikube) for local testing, with [IBM IBM Cloud Container Service](https://github.com/IBM/container-journey-template), or [IBM Cloud Private](https://github.com/IBM/deploy-ibm-cloud-private/blob/master/README.md) to deploy in cloud. The code here is regularly tested against [Kubernetes Cluster from IBM Cloud Container Service](https://console.ng.bluemix.net/docs/containers/cs_ov.html#cs_ov) using Travis.
-
 ## Objectives
-
 This scenario provides instructions for the following tasks:
 
-- Create local persistent volumes to define persistent disks.
+- Create persistent volume claims to store data for Wordpress and Mysql.
 - Create a secret to protect sensitive data.
 - Create and deploy the WordPress frontend with one or more pods.
 - Create and deploy the MySQL database (either in a container or using IBM Cloud MySQL as backend).
 
-## Deploy to IBM Cloud
-If you want to deploy the WordPress directly to IBM Cloud, click on `Deploy to IBM Cloud` button below to create an IBM Cloud DevOps service toolchain and pipeline for deploying the WordPress sample, else jump to [Steps](##steps)
+## Deployment Option 1: Deploy a Mysql container to use with Wordpress
 
-[![Create Toolchain](https://bluemix.net/deploy/button.png)](https://console.ng.bluemix.net/devops/setup/deploy/)
+###  Steps
+1. Setup MySQL Secrets
+2. Create Peristent volumes for Wordpress and Mysql 
+3. Create Deployments and Services for WordPress and MySQL
+4. Retrieve Ingress subdomain and configure domain DNS
 
-Please follow the [Toolchain instructions](https://github.com/IBM/container-journey-template/blob/master/Toolchain_Instructions_new.md) to complete your toolchain and pipeline.
-
-## Steps
-1. [Setup MySQL Secrets](#1-setup-mysql-secrets)
-2. [Create local persistent volumes](#2-create-local-persistent-volumes)
-3. [Create Services and Deployments for WordPress and MySQL](#3-create-services-and-deployments-for-wordpress-and-mysql)
-  - 3.1 [Using MySQL in container](#31-using-mysql-in-container)
-  - 3.2 [Using Bluemix MySQL](#32-using-bluemix-mysql-as-backend)
-4. [Accessing the external WordPress link](#4-accessing-the-external-wordpress-link)
-5. [Using WordPress](#5-using-wordpress)
-
-# 1. Setup MySQL Secrets
-
-> *Quickstart option:* In this repository, run `bash scripts/quickstart.sh`.
+#### Step 1: Setup MySQL Secrets
 
 Create a new file called `password.txt` in the same directory and put your desired MySQL password inside `password.txt` (Could be any string with ASCII characters).
 
+```bash
+echo "YOUR_PASSWORD" | tee password.txt
+```
 
 We need to make sure `password.txt` does not have any trailing newline. Use the following command to remove possible newlines.
 
@@ -62,51 +44,74 @@ We need to make sure `password.txt` does not have any trailing newline. Use the 
 tr -d '\n' <password.txt >.strippedpassword.txt && mv .strippedpassword.txt password.txt
 ```
 
-# 2. Create Local Persistent Volumes
-To save your data beyond the lifecycle of a Kubernetes pod, you will want to create persistent volumes for your MySQL and Wordpress applications to attach to.
+#### Step 2: Create Persistent volumes claims
 
-#### For "lite" IBM Bluemix Container Service
-Create the local persistent volumes manually by running
-```bash
-kubectl create -f local-volumes.yaml
+To save your data beyond the lifecycle of a Kubernetes pod, you will want to create persistent volumes for your MySQL and Wordpress applications to attach to. In this example I am using the `ibmc-file-retain-silver` storageclass. You can find the supported storageclasses by issuing the command `kubectl get storageclasses`.
+
 ```
-#### For paid IBM Bluemix Container Service OR Minikube
-Persistent volumes are created dynamically for you when the MySQL and Wordpress applications are deployed. No action is needed.
+kubectl create -f wordpress-mysql-pvc.yaml
+```
 
-# 3. Create Services and deployments for WordPress and MySQL
+This will take a few moments as the File storage is provisioned and bound to our cluster. You can check the progress by issing the command `kubectl get pvc -l app=wordpress`. When both volume claims show their status as `bound` you are good to move on to the next section.
 
-### 3.1 Using MySQL in container
+#### Create Deployments and Services for WordPress and MySQL
 
-> *Note:* If you want to use Bluemix Compose-MySql as your backend, please go to [Using Bluemix MySQL as backend](#32-using-bluemix-mysql-as-backend).
-
-Install persistent volume on your cluster's local storage. Then, create the secret and services for MySQL and WordPress.
+We will be storing our Mysql password as a [Kubernetes Secret](https://kubernetes.io/docs/concepts/configuration/secret/) and creating our deployment and service for mysql. 
 
 ```bash
 kubectl create secret generic mysql-pass --from-file=password.txt
 kubectl create -f mysql-deployment.yaml
+```
+
+We are going to expose our Wordpress site using an [Ingress controller](https://console.bluemix.net/docs/containers/cs_ingress.html#ingress). Before you create the Wordpress deployment you will need to update the `wordpress-deployment.yaml` and substitute your domain for `example.com`. 
+
+```
+sed -i 's|example.com|yourdomain.com|' wordpress-deployment.yaml
 kubectl create -f wordpress-deployment.yaml
 ```
 
+**Note**: if you are running these commands on a Mac use the following sed command instead:
+
+```
+sed -i '' 's|example.com|yourdomain.com|' wordpress-deployment.yaml
+```
 
 When all your pods are running, run the following commands to check your pod names.
 
 ```bash
-kubectl get pods
+kubectl get pods -l app=wordpress
 ```
 
 This should return a list of pods from the kubernetes cluster.
 
 ```bash
-NAME                               READY     STATUS    RESTARTS   AGE
-wordpress-3772071710-58mmd         1/1       Running   0          17s
-wordpress-mysql-2569670970-bd07b   1/1       Running   0          1m
+NAME                             READY     STATUS             RESTARTS   AGE
+wordpress-66fff7ddb5-9hcpd       1/1       Running            0          1m
+wordpress-66fff7ddb5-b4zm2       1/1       Running            0          1m
+wordpress-66fff7ddb5-kgbp5       1/1       Running            3          1m
+wordpress-mysql-cf9449df-6s8b2   1/1       Running            0          4m
 ```
 
-Now please move on to [Accessing the External Link](#4-accessing-the-external-wordpress-link).
+#### Retrieve Ingress subdomain and configure domain DNS
 
-### 3.2 Using Bluemix MySQL as backend
+In order to use our domain with the Wordpress site we need point create a CNAME recoed to point to our Ingress Subdomain. To retrieve the ingress subdomain run the following command:
 
-Provision Compose for MySQL in Bluemix via https://console.ng.bluemix.net/catalog/services/compose-for-mysql
+```
+ibmcloud ks cluster-get <cluster_name_or_ID>
+```
+
+Once you have the Ingress subdomain create the needed CNAME record at your domain registar. For example I am using the domain `wp.tinylab.info` so at my registar I create a CNAME record to point `wp` to `rt-k8s.us-east.containers.appdomain.cloud`
+
+
+![dns_record](images/dns_record.png)
+
+## Deployment Option 2: Using IBM CLoud Compose for MySQL as backend (WORK IN PROGRESS)
+
+Provision Compose for MySQL in IBM Cloud via https://console.ng.bluemix.net/catalog/services/compose-for-mysql
+
+```
+ibmcloud 
+```
 
 Go to Service credentials and view your credentials. Your MySQL hostname, port, user, and password are under your credential uri and it should look like this
 
